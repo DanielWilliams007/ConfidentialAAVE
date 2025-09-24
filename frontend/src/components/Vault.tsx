@@ -1,4 +1,4 @@
-import { useAccount, useReadContract } from 'wagmi';
+import { useAccount, useReadContract, usePublicClient } from 'wagmi';
 import { useState } from 'react';
 import { Contract } from 'ethers';
 import { useEthersSigner } from '../hooks/useEthersSigner';
@@ -9,6 +9,7 @@ export function Vault() {
   const { address } = useAccount();
   const signerPromise = useEthersSigner();
   const { instance } = useZamaInstance();
+  const client = usePublicClient();
 
   const [amount, setAmount] = useState('1');
   const [decBalance, setDecBalance] = useState<string>('');
@@ -23,12 +24,26 @@ export function Vault() {
   });
 
   const decryptVaultBalance = async () => {
-    if (!instance || !address || !encBalance || !signerPromise || !VAULT_ADDRESS) return;
+    if (!instance || !address || !signerPromise || !VAULT_ADDRESS || !client) return;
     setLoading(true);
     try {
+      // 1) fetch latest encrypted balance from chain
+      const latestEnc: string = await client.readContract({
+        address: VAULT_ADDRESS,
+        abi: VAULT_ABI as any,
+        functionName: 'balanceOf',
+        args: [address as `0x${string}`],
+      }) as unknown as string;
+
+      // zero-handle => treat as 0
+      if (!latestEnc || latestEnc.toLowerCase() === '0x'.padEnd(66, '0')) {
+        setDecBalance('0');
+        return;
+      }
+
       const signer = await signerPromise;
       const keypair = instance.generateKeypair();
-      const handleContractPairs = [{ handle: encBalance as string, contractAddress: VAULT_ADDRESS }];
+      const handleContractPairs = [{ handle: latestEnc, contractAddress: VAULT_ADDRESS }];
       const startTimeStamp = Math.floor(Date.now() / 1000).toString();
       const durationDays = '10';
       const eip712 = instance.createEIP712(keypair.publicKey, [VAULT_ADDRESS], startTimeStamp, durationDays);
@@ -47,7 +62,7 @@ export function Vault() {
         startTimeStamp,
         durationDays,
       );
-      const micro = result[encBalance as string] || '0';
+      const micro = result[latestEnc] || '0';
       setDecBalance((Number(micro) / 1_000_000).toString());
     } finally {
       setLoading(false);
@@ -97,7 +112,7 @@ export function Vault() {
         <button disabled={!address || loading || !encBalance || !VAULT_ADDRESS} onClick={decryptVaultBalance}>
           {loading ? 'Decrypting…' : 'Decrypt Balance'}
         </button>
-        <div>Vault Balance: {decBalance || '—'} cETH</div>
+        <div>Vault Balance: {decBalance || '***'} cETH</div>
       </div>
       <p style={{ color: '#6b7280', fontSize: 12 }}>Note: authorize the vault as operator before deposit.</p>
     </section>
