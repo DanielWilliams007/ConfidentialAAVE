@@ -23,7 +23,26 @@ export function Faucet() {
   });
 
   const refreshDecryptedBalance = async () => {
-    if (!instance || !address || !signerPromise || !CETH_ADDRESS || !client) return;
+    if (!instance) {
+      alert('Encryption service not initialized. Please try again shortly.');
+      return;
+    }
+    if (!address) {
+      alert('Please connect your wallet first.');
+      return;
+    }
+    if (!signerPromise) {
+      alert('Wallet signer not available. Please try again.');
+      return;
+    }
+    if (!CETH_ADDRESS) {
+      alert('Contract address is not configured.');
+      return;
+    }
+    if (!client) {
+      alert('Network client not ready.');
+      return;
+    }
     setLoading(true);
     try {
       // 1) fetch latest encrypted balance from chain
@@ -89,7 +108,7 @@ export function Faucet() {
         <button disabled={!address || loading || !CETH_ADDRESS} onClick={faucet}>
           {loading ? 'Processing…' : 'Mint 1 cETH'}
         </button>
-        <button disabled={!address || loading || !encBalance || !CETH_ADDRESS} onClick={refreshDecryptedBalance}>
+        <button disabled={!address || loading || !CETH_ADDRESS} onClick={refreshDecryptedBalance}>
           {loading ? 'Decrypting…' : 'Decrypt My Balance'}
         </button>
         <div>Balance: {decBalance || '***'} cETH</div>

@@ -18,7 +18,18 @@ export function Operator() {
   });
 
   const setOperator = async () => {
-    if (!signerPromise || !CETH_ADDRESS || !VAULT_ADDRESS) return;
+    if (!CETH_ADDRESS || !VAULT_ADDRESS) {
+      alert('Contract address is not configured.');
+      return;
+    }
+    if (!address) {
+      alert('Please connect your wallet first.');
+      return;
+    }
+    if (!signerPromise) {
+      alert('Wallet signer not available. Please try again.');
+      return;
+    }
     setLoading(true);
     try {
       const until = Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60; // 1 year
@@ -42,4 +53,3 @@ export function Operator() {
     </section>
   );
 }
-

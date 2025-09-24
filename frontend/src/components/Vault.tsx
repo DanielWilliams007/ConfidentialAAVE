@@ -24,7 +24,26 @@ export function Vault() {
   });
 
   const decryptVaultBalance = async () => {
-    if (!instance || !address || !signerPromise || !VAULT_ADDRESS || !client) return;
+    if (!instance) {
+      alert('Encryption service not initialized. Please try again shortly.');
+      return;
+    }
+    if (!address) {
+      alert('Please connect your wallet first.');
+      return;
+    }
+    if (!signerPromise) {
+      alert('Wallet signer not available. Please try again.');
+      return;
+    }
+    if (!VAULT_ADDRESS) {
+      alert('Contract address is not configured.');
+      return;
+    }
+    if (!client) {
+      alert('Network client not ready.');
+      return;
+    }
     setLoading(true);
     try {
       // 1) fetch latest encrypted balance from chain
@@ -70,7 +89,22 @@ export function Vault() {
   };
 
   const depositOrWithdraw = async (kind: 'deposit' | 'withdraw') => {
-    if (!signerPromise || !instance || !address || !VAULT_ADDRESS) return;
+    if (!instance) {
+      alert('Encryption service not initialized. Please try again shortly.');
+      return;
+    }
+    if (!address) {
+      alert('Please connect your wallet first.');
+      return;
+    }
+    if (!signerPromise) {
+      alert('Wallet signer not available. Please try again.');
+      return;
+    }
+    if (!VAULT_ADDRESS) {
+      alert('Contract address is not configured.');
+      return;
+    }
     setLoading(true);
     try {
       const micro = Math.floor(Number(amount) * 1_000_000);
@@ -109,7 +143,7 @@ export function Vault() {
         <button disabled={!address || loading || !VAULT_ADDRESS} onClick={() => depositOrWithdraw('withdraw')}>
           {loading ? 'Processing…' : 'Withdraw'}
         </button>
-        <button disabled={!address || loading || !encBalance || !VAULT_ADDRESS} onClick={decryptVaultBalance}>
+        <button disabled={!address || loading || !VAULT_ADDRESS} onClick={decryptVaultBalance}>
           {loading ? 'Decrypting…' : 'Decrypt Balance'}
         </button>
         <div>Vault Balance: {decBalance || '***'} cETH</div>
