@@ -7,8 +7,11 @@ export function Header() {
       <div className="header-container">
         <div className="header-content">
           <div className="header-left">
-            <h1 className="header-title">Confidential AAVE (cETH Vault)</h1>
-            
+            <div className="header-logo">
+              <div className="header-logo-icon">A</div>
+              <h1 className="header-title">Confidential AAVE</h1>
+            </div>
+            <span className="header-badge">Beta</span>
           </div>
           <ConnectButton />
         </div>

@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { Contract } from 'ethers';
 import { useEthersSigner } from '../hooks/useEthersSigner';
 import { useZamaInstance } from '../hooks/useZamaInstance';
-import { VAULT_ADDRESS, VAULT_ABI, CETH_ADDRESS } from '../config/contracts';
+import { VAULT_ADDRESS, VAULT_ABI, CETH_ADDRESS, CETH_ABI } from '../config/contracts';
+import '../styles/Components.css';
 
 export function Vault() {
   const { address } = useAccount();
@@ -14,14 +15,42 @@ export function Vault() {
   const [amount, setAmount] = useState('1');
   const [decBalance, setDecBalance] = useState<string>('');
   const [loading, setLoading] = useState(false);
+  const [activeOperation, setActiveOperation] = useState<'deposit' | 'withdraw' | 'decrypt' | 'authorize' | null>(null);
 
-  const { data: encBalance } = useReadContract({
-    address: VAULT_ADDRESS || undefined,
-    abi: VAULT_ABI,
-    functionName: 'balanceOf',
-    args: address && VAULT_ADDRESS ? [address] : undefined,
-    query: { enabled: !!address && !!VAULT_ADDRESS },
+  const { data: isOperator } = useReadContract({
+    address: CETH_ADDRESS || undefined,
+    abi: CETH_ABI,
+    functionName: 'isOperator',
+    args: address && CETH_ADDRESS && VAULT_ADDRESS ? [address, VAULT_ADDRESS] : undefined,
+    query: { enabled: !!address && !!CETH_ADDRESS && !!VAULT_ADDRESS },
   });
+
+  const authorizeVault = async () => {
+    if (!CETH_ADDRESS || !VAULT_ADDRESS) {
+      alert('Contract address is not configured.');
+      return;
+    }
+    if (!address) {
+      alert('Please connect your wallet first.');
+      return;
+    }
+    if (!signerPromise) {
+      alert('Wallet signer not available. Please try again.');
+      return;
+    }
+    setLoading(true);
+    setActiveOperation('authorize');
+    try {
+      const until = Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60;
+      const signer = await signerPromise;
+      const ceth = new Contract(CETH_ADDRESS, CETH_ABI, signer);
+      const tx = await ceth.setOperator(VAULT_ADDRESS, until);
+      await tx.wait();
+    } finally {
+      setLoading(false);
+      setActiveOperation(null);
+    }
+  };
 
   const decryptVaultBalance = async () => {
     if (!instance) {
@@ -45,8 +74,8 @@ export function Vault() {
       return;
     }
     setLoading(true);
+    setActiveOperation('decrypt');
     try {
-      // 1) fetch latest encrypted balance from chain
       const latestEnc: string = await client.readContract({
         address: VAULT_ADDRESS,
         abi: VAULT_ABI as any,
@@ -54,7 +83,6 @@ export function Vault() {
         args: [address as `0x${string}`],
       }) as unknown as string;
 
-      // zero-handle => treat as 0
       if (!latestEnc || latestEnc.toLowerCase() === '0x'.padEnd(66, '0')) {
         setDecBalance('0');
         return;
@@ -85,6 +113,7 @@ export function Vault() {
       setDecBalance((Number(micro) / 1_000_000).toString());
     } finally {
       setLoading(false);
+      setActiveOperation(null);
     }
   };
 
@@ -106,9 +135,9 @@ export function Vault() {
       return;
     }
     setLoading(true);
+    setActiveOperation(kind);
     try {
       const micro = Math.floor(Number(amount) * 1_000_000);
-      // deposit/withdraw both use inputs verified by Vault
       const target = VAULT_ADDRESS;
       if (!target) throw new Error('Missing contract address');
       const input = instance.createEncryptedInput(target, address);
@@ -122,33 +151,108 @@ export function Vault() {
       await decryptVaultBalance();
     } finally {
       setLoading(false);
+      setActiveOperation(null);
     }
   };
 
   return (
-    <section style={{ background: '#fff', padding: '1rem', borderRadius: 8, marginBottom: '1rem' }}>
-      <h2 style={{ marginTop: 0 }}>Vault</h2>
-      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.5rem' }}>
-        <input
-          type="number"
-          min="0"
-          step="0.000001"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          placeholder="Amount (cETH)"
-        />
-        <button disabled={!address || loading || !VAULT_ADDRESS} onClick={() => depositOrWithdraw('deposit')}>
-          {loading ? 'Processing…' : 'Deposit'}
-        </button>
-        <button disabled={!address || loading || !VAULT_ADDRESS} onClick={() => depositOrWithdraw('withdraw')}>
-          {loading ? 'Processing…' : 'Withdraw'}
-        </button>
-        <button disabled={!address || loading || !VAULT_ADDRESS} onClick={decryptVaultBalance}>
-          {loading ? 'Decrypting…' : 'Decrypt Balance'}
-        </button>
-        <div>Vault Balance: {decBalance || '***'} cETH</div>
+    <section className="section">
+      <div className="section-header">
+        <div>
+          <h2 className="section-title">Confidential Vault</h2>
+        </div>
       </div>
-      <p style={{ color: '#6b7280', fontSize: 12 }}>Note: authorize the vault as operator before deposit.</p>
+
+      <div className="balance-display">
+        <div>
+          <div className="balance-label">Vault Balance</div>
+          <div className="balance-value">
+            {decBalance ? (
+              <>{decBalance}<span className="balance-unit">cETH</span></>
+            ) : (
+              <span className="balance-value-hidden">•••••••</span>
+            )}
+          </div>
+        </div>
+        <button
+          className="btn btn-outline"
+          disabled={!address || loading || !VAULT_ADDRESS}
+          onClick={decryptVaultBalance}
+          style={{ alignSelf: 'center' }}
+        >
+          {loading && activeOperation === 'decrypt' ? (
+            <>
+              <span className="loading-spinner"></span>
+              Decrypting...
+            </>
+          ) : (
+            <>🔓 Reveal Balance</>
+          )}
+        </button>
+      </div>
+
+      <div className="form-group">
+        <div className="form-input-wrapper">
+          <input
+            className="form-input"
+            type="number"
+            min="0"
+            step="0.000001"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="Amount in cETH"
+          />
+        </div>
+      </div>
+
+      <div className="button-group">
+        <button
+          className={`btn ${isOperator ? 'btn-outline' : 'btn-accent'}`}
+          disabled={!address || loading || isOperator || !CETH_ADDRESS || !VAULT_ADDRESS}
+          onClick={authorizeVault}
+        >
+          {loading && activeOperation === 'authorize' ? (
+            <>
+              <span className="loading-spinner"></span>
+              Authorizing...
+            </>
+          ) : isOperator ? (
+            <>✓ Vault Authorized</>
+          ) : (
+            <>🔐 Authorize Vault</>
+          )}
+        </button>
+
+        <button
+          className="btn btn-primary"
+          disabled={!address || loading || !VAULT_ADDRESS || !isOperator}
+          onClick={() => depositOrWithdraw('deposit')}
+        >
+          {loading && activeOperation === 'deposit' ? (
+            <>
+              <span className="loading-spinner"></span>
+              Depositing...
+            </>
+          ) : (
+            <>Deposit</>
+          )}
+        </button>
+
+        <button
+          className="btn btn-secondary"
+          disabled={!address || loading || !VAULT_ADDRESS}
+          onClick={() => depositOrWithdraw('withdraw')}
+        >
+          {loading && activeOperation === 'withdraw' ? (
+            <>
+              <span className="loading-spinner"></span>
+              Withdrawing...
+            </>
+          ) : (
+            <>Withdraw</>
+          )}
+        </button>
+      </div>
     </section>
   );
 }
